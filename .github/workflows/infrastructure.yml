@@ -173,7 +173,7 @@ jobs:
         with:
           terraform_version: '1.5.0'
 
-      # ✅ CORRIGÉ : Utilise les clés AWS directement
+      # ✅ CORRIGÉ : Utilise les clés AWS
       - name: Configure AWS credentials (avec clés)
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -209,5 +209,5 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               title: '⚠️ Infrastructure Drift Detected - Dev',
-              body: `## 🚨 Alerte : Dérive de l'infrastructure détectée !\n\n### 📅 Date : ${new Date().toISOString()}\n\n### 🔍 Détails :\n- **Environnement :** Dev\n- **Région :** us-east-1\n\n### 📝 Actions recommandées :\n1. Exécuter \`cd terraform/environments/dev && terraform plan\` localement\n2. Mettre à jour le code Terraform ou variables.tf\n3. Créer une PR pour corriger la dérive`
+              body: `## 🚨 Alerte : Dérive de l'infrastructure détectée !\n\n### 📅 Date : ${new Date().toISOString()}\n\n### 🔍 Détails :\n- **Environnement :** Dev\n- **Région :** us-east-1\n\n### 📝 Actions recommandées :\n1. Exécuter \`cd terraform/environments/dev && terraform plan\` localement\n2. Mettre à jour le code Terraform\n3. Créer une PR pour corriger la dérive`
             });
