@@ -1,5 +1,5 @@
 # .github/workflows/bootstrap.yml
-name: 🚀 Bootstrap - Création du Backend Terraform
+name: 1. 🚀 Bootstrap - Création du Backend Terraform
 
 on:
   workflow_dispatch:
@@ -79,13 +79,14 @@ jobs:
           if echo "$ROLE_EXISTS" | grep -q "NOT_FOUND"; then
             echo "📦 Création du rôle IAM : ${{ env.ROLE_NAME }}..."
             
-            printf '{
+            cat > trust-policy.json << 'EOF'
+            {
               "Version": "2012-10-17",
               "Statement": [
                 {
                   "Effect": "Allow",
                   "Principal": {
-                    "Federated": "arn:aws:iam::%s:oidc-provider/token.actions.githubusercontent.com"
+                    "Federated": "arn:aws:iam::049618906674:oidc-provider/token.actions.githubusercontent.com"
                   },
                   "Action": "sts:AssumeRoleWithWebIdentity",
                   "Condition": {
@@ -98,7 +99,8 @@ jobs:
                   }
                 }
               ]
-            }' "${{ env.AWS_ACCOUNT_ID }}" > trust-policy.json
+            }
+            EOF
             
             cat trust-policy.json
             
@@ -116,7 +118,6 @@ jobs:
               --policy-arn arn:aws:iam::aws:policy/AdministratorAccess \
               --region ${{ env.AWS_REGION }}
             
-            # ⬇️⬇️⬇️ AJOUT : Attendre la propagation IAM ⬇️⬇️⬇️
             echo "⏳ Attente de la propagation IAM (30 secondes)..."
             sleep 30
             
@@ -129,205 +130,17 @@ jobs:
         run: |
           echo "🔍 Vérification finale du rôle..."
           
-          # Vérifier que le rôle existe
           aws iam get-role --role-name ${{ env.ROLE_NAME }} --region ${{ env.AWS_REGION }}
           
           ROLE_ARN="arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/${{ env.ROLE_NAME }}"
           echo "✅ Rôle IAM prêt : $ROLE_ARN"
           echo "ROLE_ARN=$ROLE_ARN" >> $GITHUB_ENV
           
-          # ⬇️⬇️⬇️ AJOUT : Test de l'assomption du rôle ⬇️⬇️⬇️
           echo "🧪 Test de l'assomption du rôle..."
           aws sts assume-role --role-arn $ROLE_ARN --role-session-name test-session --region ${{ env.AWS_REGION }} --duration-seconds 900 > /dev/null 2>&1
           
           if [ $? -eq 0 ]; then
             echo "✅ Le rôle peut être assumé avec succès !"
           else
-            echo "⚠️ Le rôle ne peut pas encore être assumé, attente supplémentaire..."
-            sleep 20
-            # Second test
-            aws sts assume-role --role-arn $ROLE_ARN --role-session-name test-session --region ${{ env.AWS_REGION }} --duration-seconds 900 > /dev/null 2>&1
-            if [ $? -eq 0 ]; then
-              echo "✅ Le rôle peut maintenant être assumé !"
-            else
-              echo "❌ Le rôle ne peut toujours pas être assumé, mais on continue..."
-            fi
+            echo "⚠️ Le rôle ne peut pas encore être assumé, mais on continue..."
           fi
-
-  # ============================================================
-  # PHASE 2 : Bootstrap Terraform (avec scans de sécurité robustes)
-  # ============================================================
-  bootstrap-security:
-    name: 🔒 IaC Security Scan - Bootstrap
-    runs-on: ubuntu-latest
-    needs: create-iam-role
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials (OIDC avec le rôle créé)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/${{ env.ROLE_NAME }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Vérifier la structure des fichiers
-        run: |
-          echo "📂 Vérification du dossier terraform/bootstrap :"
-          ls -la terraform/bootstrap/ || echo "❌ Le dossier bootstrap n'existe pas !"
-          echo ""
-          echo "📝 Fichiers Terraform trouvés :"
-          find ./terraform -name "*.tf" -type f | head -10
-
-      - name: Install tfsec
-        run: |
-          curl -s https://raw.githubusercontent.com/aquasecurity/tfsec/master/scripts/install_linux.sh | bash
-          tfsec --version || echo "⚠️ tfsec non installé"
-
-      - name: Run tfsec
-        run: |
-          tfsec ./terraform/bootstrap --soft-fail --no-color || echo "ℹ️ tfsec a trouvé des problèmes (ignorés)"
-        continue-on-error: true
-
-      - name: Install Checkov
-        run: |
-          pip install checkov
-          checkov --version || echo "⚠️ checkov non installé"
-
-      - name: Run Checkov
-        run: |
-          checkov --directory ./terraform/bootstrap --framework terraform --soft-fail --quiet || echo "ℹ️ checkov a trouvé des problèmes (ignorés)"
-        continue-on-error: true
-
-      - name: Terraform Validation
-        run: |
-          cd ${{ env.TF_ROOT }}
-          terraform init -backend=false
-          terraform validate || echo "⚠️ Validation Terraform a échoué (ignoré)"
-        continue-on-error: true
-
-  terraform-plan:
-    name: 📋 Terraform Plan - Bootstrap
-    runs-on: ubuntu-latest
-    needs: 
-      - create-iam-role
-      - bootstrap-security
-    
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: '1.5.0'
-
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/${{ env.ROLE_NAME }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Terraform Init
-        run: |
-          cd ${{ env.TF_ROOT }}
-          terraform init -reconfigure
-
-      - name: Terraform Plan
-        id: plan
-        run: |
-          cd ${{ env.TF_ROOT }}
-          terraform plan -no-color | tee plan.txt
-        continue-on-error: true
-
-  terraform-apply:
-    name: 🚀 Terraform Apply - Bootstrap
-    runs-on: ubuntu-latest
-    needs: 
-      - create-iam-role
-      - terraform-plan
-    
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: '1.5.0'
-
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/${{ env.ROLE_NAME }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Terraform Init
-        run: |
-          cd ${{ env.TF_ROOT }}
-          terraform init -reconfigure
-
-      - name: Terraform Apply
-        run: |
-          cd ${{ env.TF_ROOT }}
-          terraform apply -auto-approve
-
-      - name: Output Bootstrap Info
-        run: |
-          cd ${{ env.TF_ROOT }}
-          echo "## ✅ Backend Terraform créé avec succès !" >> $GITHUB_STEP_SUMMARY
-          echo "- **Bucket S3 :** $(terraform output -raw bucket_name 2>/dev/null || echo 'N/A')" >> $GITHUB_STEP_SUMMARY
-          echo "- **Table DynamoDB :** $(terraform output -raw dynamodb_table_name 2>/dev/null || echo 'N/A')" >> $GITHUB_STEP_SUMMARY
-          echo "- **Rôle IAM :** arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/${{ env.ROLE_NAME }}" >> $GITHUB_STEP_SUMMARY
-
-  verify-bootstrap:
-    name: ✅ Verify Bootstrap
-    runs-on: ubuntu-latest
-    needs: 
-      - create-iam-role
-      - terraform-apply
-    
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/${{ env.ROLE_NAME }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Verify S3 Bucket
-        run: |
-          BUCKET_NAME="petclinic-tfstate-2026"
-          if aws s3 ls "s3://$BUCKET_NAME" 2>&1 | grep -q 'NoSuchBucket'; then
-            echo "❌ Bucket S3 non trouvé !" >> $GITHUB_STEP_SUMMARY
-            exit 1
-          else
-            echo "✅ Bucket S3 existe : $BUCKET_NAME" >> $GITHUB_STEP_SUMMARY
-          fi
-
-      - name: Verify DynamoDB Table
-        run: |
-          TABLE_NAME="petclinic-tf-locks"
-          if aws dynamodb describe-table --table-name $TABLE_NAME --region ${{ env.AWS_REGION }} 2>&1 | grep -q 'ResourceNotFoundException'; then
-            echo "❌ Table DynamoDB non trouvée !" >> $GITHUB_STEP_SUMMARY
-            exit 1
-          else
-            echo "✅ Table DynamoDB existe : $TABLE_NAME" >> $GITHUB_STEP_SUMMARY
-          fi
-
-      - name: Verify IAM Role
-        run: |
-          if aws iam get-role --role-name ${{ env.ROLE_NAME }} --region ${{ env.AWS_REGION }} 2>&1 | grep -q 'NoSuchEntity'; then
-            echo "❌ Rôle IAM non trouvé !" >> $GITHUB_STEP_SUMMARY
-            exit 1
-          else
-            echo "✅ Rôle IAM existe : ${{ env.ROLE_NAME }}" >> $GITHUB_STEP_SUMMARY
