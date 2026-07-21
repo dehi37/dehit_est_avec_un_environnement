@@ -1,4 +1,4 @@
-# terraform/.github/workflows/application.yml
+# .github/workflows/application.yml
 name: 🐳 Application - Build & Deploy
 
 on:
@@ -6,14 +6,14 @@ on:
     branches:
       - main
     paths:
-      - 'app/**'
-      - 'Dockerfile'
+      - 'spring-petclinic/**'          # ✅ CORRIGÉ : app → spring-petclinic
+      - 'spring-petclinic/Dockerfile'  # ✅ CORRIGÉ
   pull_request:
     branches:
       - main
     paths:
-      - 'app/**'
-      - 'Dockerfile'
+      - 'spring-petclinic/**'          # ✅ CORRIGÉ
+      - 'spring-petclinic/Dockerfile'  # ✅ CORRIGÉ
 
 permissions:
   id-token: write
@@ -22,8 +22,8 @@ permissions:
 env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: petclinic-prod/petclinic
-  APP_PATH: app
-  TF_ROOT: environments/dev          # ✅ Pour récupérer les outputs Terraform
+  APP_PATH: spring-petclinic           # ✅ CORRIGÉ : app → spring-petclinic
+  TF_ROOT: terraform/environments/dev  # ✅ CORRIGÉ : ajout de terraform/
 
 jobs:
   build-and-security:
@@ -83,7 +83,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN }}
+          role-to-assume: ${{ secrets.ACTIONS_ROLE_ARN }}  # ✅ CORRIGÉ : sans GITHUB_
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
@@ -131,12 +131,12 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN }}
+          role-to-assume: ${{ secrets.ACTIONS_ROLE_ARN }}  # ✅ CORRIGÉ : sans GITHUB_
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Get ECS Cluster from Terraform
         run: |
-          cd ${{ env.TF_ROOT }}          # ✅ Va dans environments/dev
+          cd ${{ env.TF_ROOT }}
           CLUSTER_NAME=$(terraform output -raw ecs_cluster_name 2>/dev/null || echo "petclinic-dev-cluster")
           SERVICE_NAME=$(terraform output -raw service_name 2>/dev/null || echo "petclinic-dev-service")
           echo "CLUSTER_NAME=$CLUSTER_NAME" >> $GITHUB_ENV
@@ -161,7 +161,7 @@ jobs:
 
       - name: Smoke Test
         run: |
-          cd ${{ env.TF_ROOT }}          # ✅ Va dans environments/dev
+          cd ${{ env.TF_ROOT }}
           ALB_DNS=$(terraform output -raw alb_dns_name 2>/dev/null || echo "")
           
           if [ -z "$ALB_DNS" ]; then

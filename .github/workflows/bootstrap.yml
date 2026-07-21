@@ -1,4 +1,4 @@
-# terraform/.github/workflows/bootstrap.yml
+# terraform/.github/workflows/bootstrap.yml → .github/workflows/bootstrap.yml
 name: 🚀 Bootstrap - Création du Backend Terraform
 
 on:
@@ -7,17 +7,13 @@ on:
     branches:
       - main
     paths:
-      - 'terraform/bootstrap/**'
-      - 'terraform/iam-github-actions.tf'
-      - 'terraform/.github/workflows/bootstrap.yml'
-
-permissions:
-  id-token: write
-  contents: read
+      - 'terraform/bootstrap/**'           # ✅ AJOUTER terraform/
+      - 'terraform/iam-github-actions.tf'  # ✅ AJOUTER terraform/
+      - '.github/workflows/bootstrap.yml'  # ✅ CORRIGÉ
 
 env:
   AWS_REGION: us-east-1
-  TF_ROOT: terraform/bootstrap          # ✅ Chemin corrigé depuis la racine
+  TF_ROOT: terraform/bootstrap             # ✅ AJOUTER terraform/
 
 jobs:
   bootstrap-security:
@@ -35,7 +31,7 @@ jobs:
 
       - name: Run tfsec
         run: |
-          tfsec ./terraform/bootstrap --soft-fail
+          tfsec ./terraform/bootstrap --soft-fail    # ✅ AJOUTER terraform/
 
       - name: Install Checkov
         run: |
@@ -44,7 +40,7 @@ jobs:
 
       - name: Run Checkov
         run: |
-          checkov --directory ./terraform/bootstrap --framework terraform --soft-fail
+          checkov --directory ./terraform/bootstrap --framework terraform --soft-fail  # ✅ AJOUTER terraform/
 
   terraform-plan:
     name: 📋 Terraform Plan - Bootstrap
@@ -64,18 +60,18 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.ACTIONS_ROLE_ARN }}  # ✅ Nom corrigé (sans GITHUB_)
+          role-to-assume: ${{ secrets.ACTIONS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Terraform Init
         run: |
-          cd ${{ env.TF_ROOT }}
+          cd ${{ env.TF_ROOT }}                   # ✅ VA DANS terraform/bootstrap
           terraform init -reconfigure
 
       - name: Terraform Plan
         id: plan
         run: |
-          cd ${{ env.TF_ROOT }}
+          cd ${{ env.TF_ROOT }}                   # ✅ VA DANS terraform/bootstrap
           terraform plan -no-color | tee plan.txt
         continue-on-error: true
 
@@ -112,30 +108,25 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.ACTIONS_ROLE_ARN }}  # ✅ Nom corrigé
+          role-to-assume: ${{ secrets.ACTIONS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Terraform Init
         run: |
-          cd ${{ env.TF_ROOT }}
+          cd ${{ env.TF_ROOT }}                   # ✅ VA DANS terraform/bootstrap
           terraform init -reconfigure
 
       - name: Terraform Apply
         run: |
-          cd ${{ env.TF_ROOT }}
+          cd ${{ env.TF_ROOT }}                   # ✅ VA DANS terraform/bootstrap
           terraform apply -auto-approve
 
       - name: Output Bootstrap Info
         run: |
-          cd ${{ env.TF_ROOT }}
+          cd ${{ env.TF_ROOT }}                   # ✅ VA DANS terraform/bootstrap
           echo "## ✅ Backend Terraform créé avec succès !" >> $GITHUB_STEP_SUMMARY
           echo "- **Bucket S3 :** $(terraform output -raw bucket_name 2>/dev/null || echo 'N/A')" >> $GITHUB_STEP_SUMMARY
           echo "- **Table DynamoDB :** $(terraform output -raw dynamodb_table_name 2>/dev/null || echo 'N/A')" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🚀 Prochaines étapes :" >> $GITHUB_STEP_SUMMARY
-          echo "1. Vérifier que le bucket et la table existent" >> $GITHUB_STEP_SUMMARY
-          echo "2. Lancer le pipeline **Infrastructure** pour déployer l'infrastructure complète" >> $GITHUB_STEP_SUMMARY
-          echo "3. Les variables sont dans \`environments/dev/variables.tf\`" >> $GITHUB_STEP_SUMMARY
 
   bootstrap-verify:
     name: ✅ Verify Bootstrap
@@ -155,7 +146,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.ACTIONS_ROLE_ARN }}  # ✅ Nom corrigé
+          role-to-assume: ${{ secrets.ACTIONS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Verify S3 Bucket

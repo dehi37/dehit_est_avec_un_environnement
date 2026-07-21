@@ -1,4 +1,4 @@
-# terraform/.github/workflows/infrastructure.yml
+# .github/workflows/infrastructure.yml
 name: 🏗️ Infrastructure - Plan & Apply
 
 on:
@@ -6,20 +6,20 @@ on:
     branches:
       - main
     paths:
-      - 'environments/**'          # ✅ Surveille le dossier environments
-      - 'modules/**'               # ✅ Surveille les modules
-      - '**.tf'                    # ✅ Surveille tous les fichiers .tf
-      - '!bootstrap/**'            # ❌ Exclut bootstrap
-      - '!iam-github-actions.tf'   # ❌ Exclut le fichier IAM
+      - 'terraform/environments/**'      # ✅ AJOUTER terraform/
+      - 'terraform/modules/**'           # ✅ AJOUTER terraform/
+      - 'terraform/**.tf'                # ✅ AJOUTER terraform/
+      - '!terraform/bootstrap/**'        # ✅ AJOUTER terraform/
+      - '!terraform/iam-github-actions.tf' # ✅ AJOUTER terraform/
   pull_request:
     branches:
       - main
     paths:
-      - 'environments/**'
-      - 'modules/**'
-      - '**.tf'
-      - '!bootstrap/**'
-      - '!iam-github-actions.tf'
+      - 'terraform/environments/**'
+      - 'terraform/modules/**'
+      - 'terraform/**.tf'
+      - '!terraform/bootstrap/**'
+      - '!terraform/iam-github-actions.tf'
   schedule:
     - cron: '0 8 * * *'
 
@@ -31,7 +31,7 @@ permissions:
 
 env:
   AWS_REGION: us-east-1
-  TF_ROOT: environments/dev          # ✅ Pointe vers dev (où se trouve variables.tf)
+  TF_ROOT: terraform/environments/dev    # ✅ AJOUTER terraform/
 
 jobs:
   terraform-security:
@@ -50,7 +50,7 @@ jobs:
 
       - name: Run tfsec (exclut bootstrap)
         run: |
-          tfsec . --exclude-path bootstrap --soft-fail
+          tfsec ./terraform --exclude-path terraform/bootstrap --soft-fail  # ✅ AJOUTER terraform/
 
       - name: Install Checkov
         run: |
@@ -59,7 +59,7 @@ jobs:
 
       - name: Run Checkov (exclut bootstrap)
         run: |
-          checkov --directory . --framework terraform --soft-fail --skip-path bootstrap
+          checkov --directory ./terraform --framework terraform --soft-fail --skip-path terraform/bootstrap  # ✅ AJOUTER terraform/
 
   terraform-plan:
     name: 📋 Terraform Plan - Dev
@@ -79,18 +79,18 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN }}
+          role-to-assume: ${{ secrets.ACTIONS_ROLE_ARN }}  # ✅ Nom corrigé (sans GITHUB_)
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Terraform Init
         run: |
-          cd ${{ env.TF_ROOT }}          # ✅ Va dans environments/dev
+          cd ${{ env.TF_ROOT }}
           terraform init -reconfigure
 
       - name: Terraform Plan
         id: plan
         run: |
-          cd ${{ env.TF_ROOT }}          # ✅ Va dans environments/dev
+          cd ${{ env.TF_ROOT }}
           terraform plan -no-color | tee plan.txt
         continue-on-error: true
 
@@ -106,7 +106,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `## 📋 Terraform Plan - Dev\n\n\`\`\`\n${summary}\n\`\`\`\n\n✅ Plan généré automatiquement. Mergez la PR pour appliquer les changements.\n\n📁 **Variables utilisées :** \`environments/dev/variables.tf\``
+              body: `## 📋 Terraform Plan - Dev\n\n\`\`\`\n${summary}\n\`\`\`\n\n✅ Plan généré automatiquement. Mergez la PR pour appliquer les changements.\n\n📁 **Variables utilisées :** \`terraform/environments/dev/variables.tf\``
             });
 
   terraform-apply:
@@ -127,28 +127,28 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN }}
+          role-to-assume: ${{ secrets.ACTIONS_ROLE_ARN }}  # ✅ Nom corrigé
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Terraform Init
         run: |
-          cd ${{ env.TF_ROOT }}          # ✅ Va dans environments/dev
+          cd ${{ env.TF_ROOT }}
           terraform init -reconfigure
 
       - name: Terraform Apply
         run: |
-          cd ${{ env.TF_ROOT }}          # ✅ Va dans environments/dev
+          cd ${{ env.TF_ROOT }}
           terraform apply -auto-approve
 
       - name: Output Deployment Info
         run: |
-          cd ${{ env.TF_ROOT }}          # ✅ Va dans environments/dev
+          cd ${{ env.TF_ROOT }}
           echo "## ✅ Infrastructure deployed successfully !" >> $GITHUB_STEP_SUMMARY
           echo "- ALB URL: https://$(terraform output -raw alb_dns_name 2>/dev/null || echo 'N/A')" >> $GITHUB_STEP_SUMMARY
           echo "- ECS Cluster: $(terraform output -raw ecs_cluster_name 2>/dev/null || echo 'N/A')" >> $GITHUB_STEP_SUMMARY
           echo "- VPC ID: $(terraform output -raw vpc_id 2>/dev/null || echo 'N/A')" >> $GITHUB_STEP_SUMMARY
           echo "- Region: ${{ env.AWS_REGION }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Variables: environments/dev/variables.tf" >> $GITHUB_STEP_SUMMARY
+          echo "- Variables: terraform/environments/dev/variables.tf" >> $GITHUB_STEP_SUMMARY
 
   infrastructure-drift:
     name: 🔍 Drift Detection (Schedule)
@@ -167,18 +167,18 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN }}
+          role-to-assume: ${{ secrets.ACTIONS_ROLE_ARN }}  # ✅ Nom corrigé
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Terraform Init
         run: |
-          cd ${{ env.TF_ROOT }}          # ✅ Va dans environments/dev
+          cd ${{ env.TF_ROOT }}
           terraform init -reconfigure
 
       - name: Check for Drift
         id: drift
         run: |
-          cd ${{ env.TF_ROOT }}          # ✅ Va dans environments/dev
+          cd ${{ env.TF_ROOT }}
           terraform plan -detailed-exitcode -no-color || true
           EXIT_CODE=$?
           if [ $EXIT_CODE -eq 2 ]; then
@@ -198,5 +198,5 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               title: '⚠️ Infrastructure Drift Detected - Dev',
-              body: `## 🚨 Alerte : Dérive de l'infrastructure détectée !\n\n### 📅 Date : ${new Date().toISOString()}\n\n### 🔍 Détails :\n- **Environnement :** Dev\n- **Région :** us-east-1\n- **Variables :** \`environments/dev/variables.tf\`\n\n### 📝 Actions recommandées :\n1. Exécuter \`cd environments/dev && terraform plan\` localement\n2. Mettre à jour le code Terraform ou variables.tf\n3. Créer une PR pour corriger la dérive\n\n### 🛠️ Commandes utiles :\n\`\`\`bash\ncd terraform/environments/dev\nterraform plan -detailed-exitcode\n\`\`\``
+              body: `## 🚨 Alerte : Dérive de l'infrastructure détectée !\n\n### 📅 Date : ${new Date().toISOString()}\n\n### 🔍 Détails :\n- **Environnement :** Dev\n- **Région :** us-east-1\n- **Variables :** \`terraform/environments/dev/variables.tf\`\n\n### 📝 Actions recommandées :\n1. Exécuter \`cd terraform/environments/dev && terraform plan\` localement\n2. Mettre à jour le code Terraform ou variables.tf\n3. Créer une PR pour corriger la dérive\n\n### 🛠️ Commandes utiles :\n\`\`\`bash\ncd terraform/environments/dev\nterraform plan -detailed-exitcode\n\`\`\``
             });
