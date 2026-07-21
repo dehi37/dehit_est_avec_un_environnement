@@ -43,7 +43,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # ✅ Utilise les clés AWS directement
       - name: Configure AWS credentials (avec clés)
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -86,7 +85,6 @@ jobs:
         with:
           terraform_version: '1.5.0'
 
-      # ✅ Utilise les clés AWS directement
       - name: Configure AWS credentials (avec clés)
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -136,7 +134,6 @@ jobs:
         with:
           terraform_version: '1.5.0'
 
-      # ✅ Utilise les clés AWS directement
       - name: Configure AWS credentials (avec clés)
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -176,7 +173,7 @@ jobs:
         with:
           terraform_version: '1.5.0'
 
-      # ✅ Utilise les clés AWS directement
+      # ✅ CORRIGÉ : Utilise les clés AWS directement
       - name: Configure AWS credentials (avec clés)
         uses: aws-actions/configure-aws-credentials@v4
         with:
