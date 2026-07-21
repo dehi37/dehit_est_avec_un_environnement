@@ -25,7 +25,7 @@ permissions:
 
 env:
   AWS_REGION: us-east-1
-  ECR_REPOSITORY: petclinic-prod/petclinic
+  ECR_REPOSITORY: petclinic-isi-prod/petclinic-isi
   APP_PATH: spring-petclinic
   TF_ROOT: terraform/environments/dev
 
