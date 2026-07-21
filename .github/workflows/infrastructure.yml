@@ -2,6 +2,7 @@
 name: 2. 🏗️ Infrastructure - Plan & Apply
 
 on:
+  workflow_dispatch:  # ← AJOUTER CETTE LIGNE
   push:
     branches:
       - main
