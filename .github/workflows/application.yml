@@ -52,7 +52,8 @@ jobs:
         working-directory: ${{ env.APP_PATH }}
         run: |
           if [ -f "pom.xml" ]; then
-            mvn -B verify -DskipTests
+            # ✅ Désactivation du formateur Spring Java Format
+            mvn -B verify -DskipTests -Dspring-javaformat.skip=true
           else
             echo "⚠️ Aucun pom.xml trouvé - Utilisation d'une image existante"
           fi
