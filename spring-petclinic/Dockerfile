@@ -24,7 +24,9 @@ RUN --mount=type=cache,target=/root/.m2 \
 # ============================================================================
 # Stage 2: Runtime - Sécurité renforcée
 # ============================================================================
-FROM eclipse-temurin:17-jre-alpine:latest
+FROM eclipse-temurin:17-jre-alpine
+
+
 
 # Labels pour la traçabilité
 LABEL org.opencontainers.image.title="Spring PetClinic" \
