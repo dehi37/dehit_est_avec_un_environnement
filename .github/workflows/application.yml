@@ -202,35 +202,3 @@ jobs:
           # ❌ Force l'échec du smoke test pour tester le rollback
           exit 1
 
-
-        run: |
-          cd ${{ env.TF_ROOT }}
-          ALB_DNS=$(terraform output -raw alb_dns_name 2>/dev/null || echo "")
-          
-          if [ -z "$ALB_DNS" ]; then
-            ALB_DNS=$(aws elbv2 describe-load-balancers \
-              --names petclinic-isi-prod-alb \
-              --query 'LoadBalancers[0].DNSName' \
-              --output text 2>/dev/null || echo "")
-          fi
-          
-          if [ -z "$ALB_DNS" ]; then
-            echo "❌ Impossible de trouver l'URL de l'ALB"
-            exit 1
-          fi
-          
-          echo "🌐 Test de l'application : https://$ALB_DNS"
-          
-          for i in {1..60}; do
-            STATUS=$(curl -s -k -o /dev/null -w "%{http_code}" https://$ALB_DNS/actuator/health || echo "000")
-            if [ "$STATUS" = "200" ]; then
-              echo "✅ Application déployée avec succès !"
-              echo "URL: https://$ALB_DNS"
-              exit 0
-            fi
-            echo "⏳ Attente du health check... ($i/60) - Status: $STATUS"
-            sleep 10
-          done
-          
-          echo "❌ Smoke test échoué après 600 secondes"
-          exit 1
