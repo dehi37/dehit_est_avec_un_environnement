@@ -178,7 +178,31 @@ jobs:
           
           echo "✅ Déploiement ECS terminé"
 
-      - name: Smoke Test
+      - name: Smoke Test (Test du rollback automatique)
+        run: |
+          cd ${{ env.TF_ROOT }}
+          ALB_DNS=$(terraform output -raw alb_dns_name 2>/dev/null || echo "")
+          
+          if [ -z "$ALB_DNS" ]; then
+            ALB_DNS=$(aws elbv2 describe-load-balancers \
+              --names petclinic-isi-prod-alb \
+              --query 'LoadBalancers[0].DNSName' \
+              --output text 2>/dev/null || echo "")
+          Fi
+
+          if [ -z "$ALB_DNS" ]; then
+            echo "❌ Impossible de trouver l'URL de l'ALB"
+            exit 1
+          fi
+          echo "🌐 Test de l'application : https://$ALB_DNS"
+          echo "🧪 Test de rollback automatique"
+          echo "❌ Simulation d'un échec du smoke test"
+          echo "❌ Smoke test échoué - Rollback déclenché"
+          
+          # ❌ Force l'échec du smoke test pour tester le rollback
+          exit 1
+
+
         run: |
           cd ${{ env.TF_ROOT }}
           ALB_DNS=$(terraform output -raw alb_dns_name 2>/dev/null || echo "")
