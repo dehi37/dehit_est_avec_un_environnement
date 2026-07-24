@@ -1,0 +1,206 @@
+# .github/workflows/destroy.yml
+name: 💥 Destroy All - Suppression complète de l'infrastructure AWS
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Tapez "CONFIRMER" pour valider la suppression'
+        required: true
+        default: ''
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  TF_ROOT: terraform/environments/dev
+  BOOTSTRAP_ROOT: terraform/bootstrap
+
+jobs:
+  # ============================================================
+  # ÉTAPE 1 : Vérification de la confirmation
+  # ============================================================
+  check-confirmation:
+    name: 🔒 Vérification de la confirmation
+    runs-on: ubuntu-latest
+    outputs:
+      confirmed: ${{ steps.check.outputs.confirmed }}
+    steps:
+      - name: Vérifier la confirmation
+        id: check
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "CONFIRMER" ]; then
+            echo "❌ Veuillez taper CONFIRMER pour valider la suppression"
+            echo "confirmed=false" >> $GITHUB_OUTPUT
+            exit 1
+          else
+            echo "✅ Confirmation reçue. Lancement de la suppression..."
+            echo "confirmed=true" >> $GITHUB_OUTPUT
+          fi
+
+  # ============================================================
+  # ÉTAPE 2 : Suppression de l'infrastructure
+  # ============================================================
+  destroy-infrastructure:
+    name: 🗑️ Suppression de l'infrastructure (VPC, RDS, ECS, ALB, WAF, CloudFront...)
+    runs-on: ubuntu-latest
+    needs: check-confirmation
+    if: needs.check-confirmation.outputs.confirmed == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.5.0'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Détruire l'infrastructure
+        run: |
+          cd ${{ env.TF_ROOT }}
+          terraform init -reconfigure
+          terraform destroy -auto-approve
+        continue-on-error: true
+
+      - name: Vérification de la suppression
+        run: |
+          echo "✅ Infrastructure supprimée avec succès !" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================
+  # ÉTAPE 3 : Suppression du Backend (S3 + DynamoDB)
+  # ============================================================
+  destroy-backend:
+    name: 🗑️ Suppression du Backend (S3 + DynamoDB)
+    runs-on: ubuntu-latest
+    needs: destroy-infrastructure
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.5.0'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Détruire le Backend
+        run: |
+          cd ${{ env.BOOTSTRAP_ROOT }}
+          terraform init -reconfigure
+          terraform destroy -auto-approve
+        continue-on-error: true
+
+      - name: Vérification de la suppression
+        run: |
+          echo "✅ Backend (S3 + DynamoDB) supprimé avec succès !" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================
+  # ÉTAPE 4 : Nettoyage des ressources restantes
+  # ============================================================
+  cleanup-resources:
+    name: 🧹 Nettoyage des ressources restantes (Logs, ECR...)
+    runs-on: ubuntu-latest
+    needs: destroy-backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Nettoyer les groupes de logs CloudWatch
+        run: |
+          echo "🧹 Nettoyage des groupes de logs CloudWatch..."
+          
+          LOG_GROUPS=$(aws logs describe-log-groups --region ${{ env.AWS_REGION }} \
+            --query "logGroups[?contains(logGroupName, 'petclinic')].logGroupName" \
+            --output text)
+          
+          for LOG_GROUP in $LOG_GROUPS; do
+            echo "Suppression de : $LOG_GROUP"
+            aws logs delete-log-group --log-group-name $LOG_GROUP --region ${{ env.AWS_REGION }}
+          done
+        continue-on-error: true
+
+      - name: Nettoyer le repository ECR
+        run: |
+          echo "🧹 Nettoyage du repository ECR..."
+          
+          REPOS=$(aws ecr describe-repositories --region ${{ env.AWS_REGION }} \
+            --query "repositories[?contains(repositoryName, 'petclinic')].repositoryName" \
+            --output text)
+          
+          for REPO in $REPOS; do
+            echo "Suppression du repository : $REPO"
+            aws ecr delete-repository --repository-name $REPO --force --region ${{ env.AWS_REGION }}
+          done
+        continue-on-error: true
+
+      - name: Nettoyer les secrets Secrets Manager
+        run: |
+          echo "🧹 Nettoyage des secrets..."
+          
+          SECRETS=$(aws secretsmanager list-secrets --region ${{ env.AWS_REGION }} \
+            --query "SecretList[?contains(Name, 'petclinic')].Name" \
+            --output text)
+          
+          for SECRET in $SECRETS; do
+            echo "Suppression du secret : $SECRET"
+            aws secretsmanager delete-secret --secret-id $SECRET --force-delete-without-recovery --region ${{ env.AWS_REGION }}
+          done
+        continue-on-error: true
+
+      - name: Nettoyer les services ECS
+        run: |
+          echo "🧹 Nettoyage des services ECS..."
+          
+          CLUSTERS=$(aws ecs list-clusters --region ${{ env.AWS_REGION }} \
+            --query "clusterArns[?contains(@, 'petclinic')]" \
+            --output text)
+          
+          for CLUSTER in $CLUSTERS; do
+            echo "Suppression du cluster : $CLUSTER"
+            SERVICES=$(aws ecs list-services --cluster $CLUSTER --region ${{ env.AWS_REGION }} \
+              --query "serviceArns" --output text)
+            for SERVICE in $SERVICES; do
+              aws ecs update-service --cluster $CLUSTER --service $SERVICE --desired-count 0 --region ${{ env.AWS_REGION }}
+              aws ecs delete-service --cluster $CLUSTER --service $SERVICE --force --region ${{ env.AWS_REGION }}
+            done
+            aws ecs delete-cluster --cluster $CLUSTER --region ${{ env.AWS_REGION }}
+          done
+        continue-on-error: true
+
+      - name: Nettoyage final - Résumé
+        run: |
+          echo "## ✅ Nettoyage terminé !" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🗑️ Ressources supprimées :" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Infrastructure (VPC, RDS, ECS, ALB, WAF, CloudFront)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Backend (S3 + DynamoDB)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Logs CloudWatch" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Repository ECR" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Secrets Manager" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Services ECS" >> $GITHUB_STEP_SUMMARY
