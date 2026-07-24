@@ -101,11 +101,11 @@ PROJET_BINOME/
 ## 📋 Détail des pipelines CI/CD
 
 | Ordre | Pipeline | Fichier | Rôle | TP |
-|-----|----------|---------|------|-----|
-|  1  |🚀 **Bootstrap** | `bootstrap.yml` | Création automatisée du socle S3/DynamoDB | TP4 |
-|  2  |🏗️ **Infrastructure** | `infrastructure.yml` | Validation, scan tfsec et déploiement GitOps de l'IaC | TP4 |
-|  3  |🐳 **Application** | `application.yml` | Test Maven, scan Trivy, push Docker, mise à jour ECS et Smoke test | TP4 |
-|  4  |💥 **Destruction** | `destroy.yml` | Suppression complète de l'infrastructure AWS (VPC, RDS, ECS, ALB, WAF, CloudFront, S3, DynamoDB, Logs, ECR, Secrets). **Nécessite une confirmation manuelle (`CONFIRMER`)** avant l'exécution. | TP4 |
+|----|----------|---------|------|-----|
+|  1 |🚀 **Bootstrap** | `bootstrap.yml` | Création automatisée du socle S3/DynamoDB | TP4 |
+|  2 |🏗️ **Infrastructure** | `infrastructure.yml` | Validation, scan tfsec et déploiement GitOps de l'IaC | TP4 |
+|  3 |🐳 **Application** | `application.yml` | Test Maven, scan Trivy, push Docker, mise à jour ECS et Smoke test | TP4 |
+|  4 |💥 **Destruction** | `destroy.yml` | Suppression complète de l'infrastructure AWS (VPC, RDS, ECS, ALB, WAF, CloudFront, S3, DynamoDB, Logs, ECR, Secrets). **Nécessite une confirmation manuelle (`CONFIRMER`)** avant l'exécution. | TP4 |
 
 ## Déploiement 100% Automatisé (CI/CD GitOps)
 
